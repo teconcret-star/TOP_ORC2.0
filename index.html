@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sistema Local - Cadastros</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f2f2f2; margin:0; }
+    header { background:#4a6ee0; color:#fff; padding:20px; text-align:center; }
+    .container { max-width:1300px; margin:20px auto; background:#fff; padding:20px; border-radius:10px; }
+    .menu { display:flex; gap:10px; justify-content:center; margin-bottom:20px; flex-wrap:wrap; }
+    .btn { padding:12px 16px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; }
+    .btn-primary { background:#4a6ee0; color:#fff; }
+    .btn-secondary { background:#f05a7a; color:#fff; }
+    .btn-tertiary { background:#2ecc71; color:#fff; }
+    .btn-quaternary { background:#f39c12; color:#fff; }
+    .btn-dark { background:#34495e; color:#fff; }
+    .btn-danger { background:#e74c3c; color:#fff; padding:6px 10px; border-radius:6px; }
+    .hidden { display:none !important; }
+    label { display:block; margin-top:10px; font-weight:bold; }
+    input, select { width:100%; padding:8px; margin-top:4px; }
+    .calc { background:#f9f9f9; padding:10px; margin-top:10px; border-radius:6px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .row > div { flex:1; min-width:200px; }
+    table { width:100%; border-collapse:collapse; margin-top:15px; }
+    th, td { border:1px solid #ddd; padding:8px; text-align:left; }
+    th { background:#eee; }
+    .filter-box { margin-top:15px; }
+    .card { background:#f7f7f7; padding:12px; border-radius:8px; margin-top:10px; }
+    .total { font-size:18px; font-weight:bold; }
+    .hint { font-size:12px; color:#666; margin-top:6px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+
+    /* Login */
+    .auth-wrap { max-width:520px; margin:40px auto; background:#fff; border-radius:12px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,.08); }
+    .auth-title { margin:0 0 10px 0; }
+    .auth-sub { margin:0 0 14px 0; color:#666; font-size:13px; }
+    .auth-actions { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+    .topbar { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+    .chip { display:inline-block; padding:6px 10px; background:#eef2ff; border-radius:999px; color:#223; font-size:12px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🏭 Sistema Local - Cadastros</h1>
+</header>
+
+<!-- ===== LOGIN ===== -->
+<div class="auth-wrap" id="tela-login">
+  <h2 class="auth-title">Acesso ao Sistema</h2>
+  <p class="auth-sub">Digite seu login e senha para entrar.</p>
+
+  <form id="formLogin">
+    <label>Login</label>
+    <input type="text" id="login_usuario" autocomplete="username" required>
+
+    <label>Senha</label>
+    <input type="password" id="login_senha" autocomplete="current-password" required>
+
+    <div class="auth-actions">
+      <button type="submit" class="btn btn-primary">Entrar</button>
+    </div>
+
+    <p class="hint" id="login_erro" style="color:#b00020;"></p>
+  </form>
+</div>
+
+<!-- ===== SISTEMA ===== -->
+<div class="container hidden" id="app">
+  <div class="topbar">
+    <div class="chip" id="chip-usuario">Usuário: -</div>
+    <div class="actions">
+      <button class="btn btn-dark" id="btn-admin" onclick="mostrar('admin')">🛡️ Admin</button>
+      <button class="btn btn-dark" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="menu" id="menu">
+    <button class="btn btn-primary" onclick="mostrar('insumos')">📦 Insumos</button>
+    <button class="btn btn-secondary" onclick="mostrar('pecas')">🔧 Peças</button>
+    <button class="btn btn-tertiary" onclick="mostrar('tracos')">🧪 Traços</button>
+    <button class="btn btn-quaternary" onclick="mostrar('custos')">💰 Custo Produção</button>
+  </div>
+
+  <!-- ===== ADMIN ===== -->
+  <div id="tela-admin" class="hidden">
+    <button class="btn btn-dark" onclick="mostrar('menu')">← Voltar</button>
+    <h2>Administração de Usuários</h2>
+    <p class="hint">Para cadastrar usuário é necessário confirmar a senha do administrador.</p>
+
+    <div class="card">
+      <h3>Cadastrar novo usuário</h3>
+      <form id="formNovoUsuario">
+        <div class="row">
+          <div>
+            <label>Novo login</label>
+            <input type="text" id="novo_login" required>
+          </div>
+          <div>
+            <label>Nova senha</label>
+            <input type="password" id="nova_senha" required>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Confirmar senha do Administrador</label>
+            <input type="password" id="admin_senha_confirm" required>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button class="btn btn-primary" type="submit">Cadastrar</button>
+          </div>
+        </div>
+        <p class="hint" id="admin_msg" style="color:#b00020;"></p>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3>Usuários cadastrados</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Login</th>
+            <th>Tipo</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="lista-usuarios"></tbody>
+      </table>
+      <p class="hint">O administrador padrão não pode ser removido.</p>
+    </div>
+  </div>
+
+  <!-- INSUMOS -->
+  <div id="tela-insumos" class="hidden">
+    <button class="btn btn-primary" onclick="mostrar('menu')">← Voltar</button>
+    <h2>Cadastro de Insumos</h2>
+    <p class="hint">Dê dois cliques na tabela para editar. Você pode selecionar da lista ou digitar um novo valor.</p>
+
+    <div class="actions">
+      <button class="btn btn-dark" onclick="exportarExcel('insumos')">⬇ Exportar Excel</button>
+      <button class="btn btn-dark" onclick="document.getElementById('importar-insumos').click()">⬆ Importar Excel</button>
+      <input id="importar-insumos" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarArquivo(event, 'insumos')">
+    </div>
+
+    <form id="formInsumo">
+      <label>Insumo</label>
+      <input type="text" id="insumo" list="lista-insumos-opcoes" required placeholder="Selecione ou digite um novo insumo">
+      <datalist id="lista-insumos-opcoes">
+        <option value="Aareia Fina">
+        <option value="Aditivo">
+        <option value="Água">
+        <option value="ARAME">
+        <option value="Areia">
+        <option value="Brita">
+        <option value="Calcario">
+        <option value="Cimento">
+        <option value="DESMOLDANTE">
+        <option value="FIBRA">
+        <option value="MADEIRA">
+        <option value="MALHA POP">
+        <option value="PIGMENTO">
+        <option value="Silica">
+      </datalist>
+
+      <label>Tipo</label>
+      <input type="text" id="tipo" list="lista-tipos-opcoes" required placeholder="Selecione ou digite um novo tipo">
+      <datalist id="lista-tipos-opcoes">
+        <option value="Água">
+        <option value="AMARELO 918 LO">
+        <option value="AMARELO 10X Y02">
+        <option value="Anti-Bolha">
+        <option value="ARAME MORLAN AÇO ZINCADO">
+        <option value="AZUL CELESTE">
+        <option value="Brita 0 Granito rosa 4,8 mm">
+        <option value="Cactico Cinza">
+        <option value="Calcario Branco 100">
+        <option value="Calcario Fino">
+        <option value="CARBON BLACK">
+        <option value="CP H E 40">
+        <option value="CP V ARI RS">
+        <option value="CPB">
+        <option value="Dolomita # 40">
+        <option value="Dolomita 100">
+        <option value="Dolomita 18">
+        <option value="FIBRA DE VIDRO">
+        <option value="IOX Y02 VERMELHO">
+        <option value="MARROM 601">
+        <option value="MARROM 686">
+        <option value="MARROM 975">
+        <option value="Natura de Quartzo Malha 200">
+        <option value="Natural Fina">
+        <option value="NAVAL">
+        <option value="NAVAL COMUM">
+        <option value="PINUS">
+        <option value="PRETO 318">
+        <option value="PRETO 328">
+        <option value="PRETO URUBU">
+        <option value="Quartzo 328">
+        <option value="SIKA RAPID 100 (Acelerante)">
+        <option value="SILICA ATIVA">
+        <option value="SILICON DESMOLD">
+        <option value="TELA VIDRO 2X3">
+        <option value="VEDACIT">
+        <option value="VERDE UNIVERSAL G5">
+      </datalist>
+
+      <label>Fornecedor</label>
+      <input type="text" id="fornecedor" required>
+
+      <label>Unidade de Custo</label>
+      <input type="text" id="unidade" list="lista-unidades-opcoes" required placeholder="Selecione ou digite uma nova unidade">
+      <datalist id="lista-unidades-opcoes">
+        <option value="P/M²">
+        <option value="P/KG">
+        <option value="P/M">
+      </datalist>
+
+      <label>Valor do Custo</label>
+      <input type="number" step="0.01" id="custo" required>
+
+      <label>Massa Específica (kg/m³)</label>
+      <input type="number" step="0.01" id="massa" required>
+
+      <button type="submit" class="btn btn-primary" style="margin-top:10px;">Salvar</button>
+    </form>
+
+    <div class="filter-box">
+      <label>Filtro (Insumos)</label>
+      <input type="text" id="filtro-insumos" oninput="renderInsumos()" placeholder="Digite para filtrar...">
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>Insumo</th><th>Tipo</th><th>Fornecedor</th><th>Unidade</th><th>Custo</th><th>Massa</th><th>Ação</th>
+        </tr>
+      </thead>
+      <tbody id="lista-insumos"></tbody>
+    </table>
+  </div>
+
+  <!-- PEÇAS -->
+  <div id="tela-pecas" class="hidden">
+    <button class="btn btn-secondary" onclick="mostrar('menu')">← Voltar</button>
+    <h2>Cadastro de Peças</h2>
+    <p class="hint">Dê dois cliques na tabela para editar.</p>
+
+    <div class="actions">
+      <button class="btn btn-dark" onclick="exportarExcel('pecas')">⬇ Exportar Excel</button>
+      <button class="btn btn-dark" onclick="document.getElementById('importar-pecas').click()">⬆ Importar Excel</button>
+      <input id="importar-pecas" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarArquivo(event, 'pecas')">
+    </div>
+
+    <form id="formPeca">
+      <label>ID da Peça</label>
+      <input type="text" id="id_peca" required>
+
+      <div class="row">
+        <div><label>Dimensão 1</label><input type="number" step="0.001" id="d1" required oninput="calcular()"></div>
+        <div><label>Dimensão 2</label><input type="number" step="0.001" id="d2" required oninput="calcular()"></div>
+        <div><label>Dimensão 3 (Espessura)</label><input type="number" step="0.001" id="d3" required oninput="calcular()"></div>
+      </div>
+
+      <div class="calc">
+        <p>Área: <span id="area">0</span> m²</p>
+        <p>Volume: <span id="volume">0</span> m³</p>
+        <p>Perímetro: <span id="perimetro">0</span> m</p>
+        <p>Área Lateral: <span id="area_lateral">0</span> m²</p>
+      </div>
+
+      <label>Qtd. Arames</label>
+      <select id="arames" required>
+        <option value="">Selecione</option>
+        <option value="1">1 Arame</option>
+        <option value="2">2 Arames</option>
+        <option value="3">3 Arames</option>
+        <option value="5">5 Arames</option>
+      </select>
+
+      <button type="submit" class="btn btn-secondary" style="margin-top:10px;">Salvar</button>
+    </form>
+
+    <div class="filter-box">
+      <label>Filtro (Peças)</label>
+      <input type="text" id="filtro-pecas" oninput="renderPecas()" placeholder="Digite para filtrar...">
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>ID</th><th>D1</th><th>D2</th><th>D3</th><th>Área</th><th>Volume</th><th>Perímetro</th><th>Área Lateral</th><th>Arames</th><th>Ação</th>
+        </tr>
+      </thead>
+      <tbody id="lista-pecas"></tbody>
+    </table>
+  </div>
+
+  <!-- TRAÇOS -->
+  <div id="tela-tracos" class="hidden">
+    <button class="btn btn-tertiary" onclick="mostrar('menu')">← Voltar</button>
+    <h2>Cadastro de Traços</h2>
+    <p class="hint">Dê dois cliques na tabela para editar o traço completo.</p>
+
+    <div class="actions">
+      <button class="btn btn-dark" onclick="exportarExcel('tracos')">⬇ Exportar Excel</button>
+      <button class="btn btn-dark" onclick="document.getElementById('importar-tracos').click()">⬆ Importar Excel</button>
+      <input id="importar-tracos" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarArquivo(event, 'tracos')">
+    </div>
+
+    <div class="card">
+      <label>Nome do Traço</label>
+      <input type="text" id="traco_nome" placeholder="Ex: Traço A" required>
+
+      <div class="row">
+        <div>
+          <label>Insumo</label>
+          <select id="traco_insumo" onchange="atualizarTiposTraco()" required></select>
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="traco_tipo" onchange="atualizarMassaTraco()" required></select>
+        </div>
+        <div>
+          <label>Densidade (kg/m³)</label>
+          <input type="text" id="traco_massa" readonly>
+        </div>
+        <div>
+          <label>Custo Unitário</label>
+          <input type="text" id="traco_custo_unit" readonly>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Quantidade</label>
+          <input type="number" step="0.001" id="traco_qtd" oninput="recalcularItemPorQuantidade()">
+        </div>
+        <div>
+          <label>Volume Item (m³)</label>
+          <input type="number" step="0.000001" id="traco_volume_item" readonly>
+        </div>
+        <div>
+          <label>Custo Item</label>
+          <input type="text" id="traco_custo_total_item" readonly>
+        </div>
+      </div>
+
+      <button class="btn btn-tertiary" style="margin-top:10px;" onclick="adicionarItemTraco()">Adicionar Item</button>
+    </div>
+
+    <div class="card">
+      <h3>Itens do Traço</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Insumo</th><th>Tipo</th><th>Densidade</th><th>Custo Unit.</th><th>Qtd</th><th>Volume</th><th>Custo</th><th>Ação</th>
+          </tr>
+        </thead>
+        <tbody id="lista-itens-traco"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3>Resumo do Traço</h3>
+      <div class="row">
+        <div>
+          <label>Volume Total Calculado (m³)</label>
+          <input type="number" step="0.000001" id="traco_volume_total" readonly>
+        </div>
+        <div>
+          <label>Volume Desejado (m³)</label>
+          <input type="number" step="0.000001" id="traco_volume_desejado_total" oninput="ajustarVolumeTotal()">
+        </div>
+        <div>
+          <label>Custo Total</label>
+          <input type="text" id="traco_custo_total" readonly>
+        </div>
+      </div>
+      <button class="btn btn-tertiary" style="margin-top:10px;" onclick="salvarTraco()">Salvar Traço</button>
+    </div>
+
+    <div class="filter-box">
+      <label>Filtro (Traços)</label>
+      <input type="text" id="filtro-tracos" oninput="renderTracos()" placeholder="Digite para filtrar...">
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>Traço</th><th>Itens</th><th>Ação</th>
+        </tr>
+      </thead>
+      <tbody id="lista-tracos"></tbody>
+    </table>
+  </div>
+
+  <!-- CUSTO PRODUÇÃO -->
+  <div id="tela-custos" class="hidden">
+    <button class="btn btn-quaternary" onclick="mostrar('menu')">← Voltar</button>
+    <h2>Custo de Produção de Peças</h2>
+    <p class="hint">Dê dois cliques na tabela para editar.</p>
+
+    <div class="actions">
+      <button class="btn btn-dark" onclick="exportarExcel('producao')">⬇ Exportar Excel</button>
+      <button class="btn btn-dark" onclick="document.getElementById('importar-producao').click()">⬆ Importar Excel</button>
+      <input id="importar-producao" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarArquivo(event, 'producao')">
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>ID da Peça</label>
+          <select id="custo_id_peca" onchange="atualizarDadosPeca()" required></select>
+        </div>
+        <div>
+          <label>Classificação</label>
+          <select id="custo_classificacao">
+            <option value="PLACAS">PLACAS</option>
+            <option value="RIPAS">RIPAS</option>
+            <option value="OUTROS">OUTROS</option>
+          </select>
+        </div>
+        <div>
+          <label>Quantidade de Peças</label>
+          <input type="number" id="custo_qtd_pecas" value="1" oninput="recalcularCustos()">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Formas</h3>
+      <div class="row">
+        <div>
+          <label>Nome Forma Base (Tipo Insumo)</label>
+          <select id="forma_base_tipo" onchange="recalcularCustos()"></select>
+        </div>
+        <div>
+          <label>Nome Forma Lateral (Tipo Insumo)</label>
+          <select id="forma_lateral_tipo" onchange="recalcularCustos()"></select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Majoração Forma Base (%)</label>
+          <input type="number" step="0.01" id="coef_forma_base" value="0" oninput="recalcularCustos()">
+        </div>
+        <div>
+          <label>Majoração Forma Lateral (%)</label>
+          <input type="number" step="0.01" id="coef_forma_lateral" value="0" oninput="recalcularCustos()">
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>Área Total (m²)</label>
+          <input type="text" id="area_total" readonly>
+        </div>
+        <div>
+          <label>Custo Forma Base</label>
+          <input type="text" id="custo_forma_base" readonly>
+        </div>
+        <div>
+          <label>Área Lateral Total (m²)</label>
+          <input type="text" id="area_lateral_total" readonly>
+        </div>
+        <div>
+          <label>Custo Forma Lateral</label>
+          <input type="text" id="custo_forma_lateral" readonly>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Traço</h3>
+      <div class="row">
+        <div>
+          <label>ID Traço</label>
+          <select id="custo_traco_id" onchange="recalcularCustos()"></select>
+        </div>
+
+        <div>
+          <label>Majoração Traço (%)</label>
+          <input type="number" step="0.01" id="coef_traco" value="0" oninput="recalcularCustos()">
+        </div>
+
+        <div>
+          <label>Volume Total (m³)</label>
+          <input type="text" id="volume_total" readonly>
+        </div>
+        <div>
+          <label>Custo Traço</label>
+          <input type="text" id="custo_traco" readonly>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Armação</h3>
+      <div class="row">
+        <div>
+          <label>Nome Tipo de Armação</label>
+          <select id="armacao_tipo" onchange="recalcularCustos()">
+            <option value="ARAME">ARAME</option>
+            <option value="MALHA POP">MALHA POP</option>
+          </select>
+        </div>
+        <div>
+          <label>Insumo da Armação (Tipo Insumo)</label>
+          <select id="armacao_insumo" onchange="recalcularCustos()"></select>
+        </div>
+
+        <div>
+          <label>Majoração Armação (%)</label>
+          <input type="number" step="0.01" id="coef_armacao" value="0" oninput="recalcularCustos()">
+        </div>
+
+        <div>
+          <label>Custo Armação</label>
+          <input type="text" id="custo_armacao" readonly>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Desmoldante</h3>
+      <div class="row">
+        <div>
+          <label>Nome Desmoldante (Tipo Insumo)</label>
+          <select id="desmoldante_tipo" onchange="recalcularCustos()"></select>
+        </div>
+        <div>
+          <label>Consumo (por m²)</label>
+          <input type="number" step="0.0001" id="desmoldante_consumo" oninput="recalcularCustos()">
+        </div>
+
+        <div>
+          <label>Majoração Desmoldante (%)</label>
+          <input type="number" step="0.01" id="coef_desmoldante" value="0" oninput="recalcularCustos()">
+        </div>
+
+        <div>
+          <label>Custo Desmoldante</label>
+          <input type="text" id="custo_desmoldante" readonly>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Resultados</h3>
+      <div class="row">
+        <div>
+          <label>Custo Total</label>
+          <input class="total" type="text" id="resultado_total" readonly>
+        </div>
+        <div>
+          <label>Custo por Peça</label>
+          <input class="total" type="text" id="resultado_por_peca" readonly>
+        </div>
+        <div>
+          <label>Custo por m²</label>
+          <input class="total" type="text" id="resultado_por_m2" readonly>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-quaternary" onclick="salvarProducao()">Salvar Produção</button>
+    </div>
+
+    <div class="filter-box">
+      <label>Filtro (Produção)</label>
+      <input type="text" id="filtro-producao" oninput="renderProducao()" placeholder="Digite para filtrar...">
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th><th>ID Peça</th><th>Classificação</th><th>Quantidade</th>
+          <th>Traço</th><th>Custo Total</th><th>Custo/Peça</th><th>Custo/m²</th>
+          <th>Mão de Obra Total</th><th>Total Final</th><th>Ação</th>
+        </tr>
+      </thead>
+      <tbody id="lista-producao"></tbody>
+    </table>
+
+    <div class="card hidden" id="card-mao-obra">
+      <h3>Cálculo de Mão de Obra</h3>
+
+      <div class="row">
+        <div><label>Produção Selecionada</label><input type="text" id="mao_obra_ref" readonly></div>
+        <div><label>Quantidade de peças (dia)</label><input type="number" id="mao_qtd_dia" oninput="calcularMaoObra()"></div>
+      </div>
+
+      <h4>Etapa 1 - Concretagem</h4>
+      <div class="row">
+        <div><label>Custo Mão de Obra</label><input type="number" id="concreto_custo" oninput="calcularMaoObra()"></div>
+        <div><label>Coeficiente de Majoração</label><input type="number" step="0.01" id="concreto_coef" oninput="calcularMaoObra()"></div>
+        <div><label>Custo Unitário</label><input type="text" id="concreto_unit" readonly></div>
+      </div>
+
+      <h4>Etapa 2 - Montagem de Forma</h4>
+      <div class="row">
+        <div><label>Custo Mão de Obra</label><input type="number" id="forma_custo" oninput="calcularMaoObra()"></div>
+        <div><label>Coeficiente de Majoração</label><input type="number" step="0.01" id="forma_coef" oninput="calcularMaoObra()"></div>
+        <div><label>Custo Unitário</label><input type="text" id="forma_unit" readonly></div>
+      </div>
+
+      <div class="row">
+        <div><label>Custo Unitário Total</label><input type="text" id="mao_unit_total" readonly></div>
+        <div><label>Custo Total Mão de Obra</label><input type="text" id="mao_total" readonly></div>
+        <div><label>Total Final (Produção + MO)</label><input type="text" id="mao_total_final" readonly></div>
+      </div>
+
+      <button class="btn btn-quaternary" onclick="salvarMaoObra()">Salvar Mão de Obra</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+  // ===== AUTH / USERS =====
+  const ADMIN_LOGIN = "Fernando";
+  const ADMIN_PASSWORD = "Fern@ndo9!";
+
+  const LS_USERS = "usuarios_sistema_v1";
+  const LS_SESSION = "sessao_usuario_v1";
+
+  function loadUsers() {
+    const raw = localStorage.getItem(LS_USERS);
+    if (raw) {
+      try { return JSON.parse(raw); } catch { /* ignore */ }
+    }
+    // seed default admin
+    const seed = [{ login: ADMIN_LOGIN, senha: ADMIN_PASSWORD, role: "admin" }];
+    localStorage.setItem(LS_USERS, JSON.stringify(seed));
+    return seed;
+  }
+
+  function saveUsers(users) {
+    localStorage.setItem(LS_USERS, JSON.stringify(users));
+  }
+
+  function getSession() {
+    const raw = localStorage.getItem(LS_SESSION);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  }
+
+  function setSession(session) {
+    localStorage.setItem(LS_SESSION, JSON.stringify(session));
+  }
+
+  function clearSession() {
+    localStorage.removeItem(LS_SESSION);
+  }
+
+  function normalizeLogin(s) {
+    return String(s || "").trim();
+  }
+
+  function isAdminLogged() {
+    const s = getSession();
+    return !!s && s.role === "admin";
+  }
+
+  function renderAdminButton() {
+    const btn = document.getElementById('btn-admin');
+    if (!btn) return;
+    btn.classList.toggle('hidden', !isAdminLogged());
+  }
+
+  function showAppUI() {
+    document.getElementById('tela-login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    const s = getSession();
+    document.getElementById('chip-usuario').textContent = `Usuário: ${s?.login || '-'}`;
+    renderAdminButton();
+    mostrar('menu');
+  }
+
+  function showLoginUI() {
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('tela-login').classList.remove('hidden');
+    document.getElementById('login_erro').textContent = '';
+    document.getElementById('formLogin').reset();
+  }
+
+  function logout() {
+    clearSession();
+    showLoginUI();
+  }
+
+  document.getElementById('formLogin').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const login = normalizeLogin(document.getElementById('login_usuario').value);
+    const senha = document.getElementById('login_senha').value || '';
+
+    const users = loadUsers();
+    const u = users.find(x => x.login === login && x.senha === senha);
+    if (!u) {
+      document.getElementById('login_erro').textContent = 'Login ou senha inválidos.';
+      return;
+    }
+
+    setSession({ login: u.login, role: u.role || "user" });
+    showAppUI();
+  });
+
+  function renderUsuariosAdmin() {
+    const tbody = document.getElementById('lista-usuarios');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const users = loadUsers();
+    users.forEach(u => {
+      const tr = document.createElement('tr');
+      const tipo = u.role === 'admin' ? 'admin' : 'user';
+      const canDelete = u.login !== ADMIN_LOGIN;
+
+      tr.innerHTML = `
+        <td>${u.login}</td>
+        <td>${tipo}</td>
+        <td>
+          ${canDelete ? `<button class="btn-danger" onclick="excluirUsuario('${encodeURIComponent(u.login)}')">🗑️</button>` : ''}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function excluirUsuario(encodedLogin) {
+    if (!isAdminLogged()) return alert('Acesso negado.');
+    const login = decodeURIComponent(encodedLogin);
+    if (login === ADMIN_LOGIN) return;
+
+    const users = loadUsers().filter(u => u.login !== login);
+    saveUsers(users);
+    renderUsuariosAdmin();
+  }
+
+  document.getElementById('formNovoUsuario').addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (!isAdminLogged()) {
+      document.getElementById('admin_msg').textContent = 'Apenas admin pode cadastrar.';
+      return;
+    }
+
+    const novoLogin = normalizeLogin(document.getElementById('novo_login').value);
+    const novaSenha = document.getElementById('nova_senha').value || '';
+    const adminConfirm = document.getElementById('admin_senha_confirm').value || '';
+
+    if (adminConfirm !== ADMIN_PASSWORD) {
+      document.getElementById('admin_msg').textContent = 'Senha do administrador inválida.';
+      return;
+    }
+    if (!novoLogin || !novaSenha) {
+      document.getElementById('admin_msg').textContent = 'Informe login e senha.';
+      return;
+    }
+
+    const users = loadUsers();
+    if (users.some(u => u.login === novoLogin)) {
+      document.getElementById('admin_msg').textContent = 'Já existe um usuário com esse login.';
+      return;
+    }
+
+    users.push({ login: novoLogin, senha: novaSenha, role: 'user' });
+    saveUsers(users);
+
+    document.getElementById('admin_msg').style.color = '#0b6';
+    document.getElementById('admin_msg').textContent = 'Usuário cadastrado com sucesso.';
+    this.reset();
+    renderUsuariosAdmin();
+
+    setTimeout(() => {
+      const el = document.getElementById('admin_msg');
+      if (!el) return;
+      el.style.color = '#b00020';
+      el.textContent = '';
+    }, 2000);
+  });
+
+  // ===== APP (original) =====
+  let itensTraco = [];
+  let editInsumoIndex = null;
+  let editPecaIndex = null;
+  let editTracoIndex = null;
+  let editProducaoIndex = null;
+  let maoObraIndex = null;
+
+  function percentToMultiplier(value) {
+    const n = parseFloat(String(value ?? '').replace(',', '.'));
+    if (isNaN(n)) return 1;
+    return 1 + (n / 100);
+  }
+
+  function mostrar(tela) {
+    ['menu','tela-admin','tela-insumos','tela-pecas','tela-tracos','tela-custos'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.add('hidden');
+    });
+
+    if (tela === 'menu') document.getElementById('menu').classList.remove('hidden');
+    if (tela === 'admin') {
+      if (!isAdminLogged()) { alert('Acesso negado.'); mostrar('menu'); return; }
+      document.getElementById('tela-admin').classList.remove('hidden');
+      renderUsuariosAdmin();
+    }
+    if (tela === 'insumos') document.getElementById('tela-insumos').classList.remove('hidden');
+    if (tela === 'pecas') document.getElementById('tela-pecas').classList.remove('hidden');
+    if (tela === 'tracos') document.getElementById('tela-tracos').classList.remove('hidden');
+    if (tela === 'custos') document.getElementById('tela-custos').classList.remove('hidden');
+
+    if (tela === 'insumos') renderInsumos();
+    if (tela === 'pecas') renderPecas();
+    if (tela === 'tracos') { prepararTracos(); renderTracos(); }
+    if (tela === 'custos') { prepararCustos(); renderProducao(); }
+  }
+
+  function calcular() {
+    const d1v = parseFloat(d1.value) || 0;
+    const d2v = parseFloat(d2.value) || 0;
+    const d3v = parseFloat(d3.value) || 0;
+    area.textContent = (d1v * d2v).toFixed(3);
+    volume.textContent = (d1v * d2v * d3v).toFixed(3);
+    perimetro.textContent = (2 * (d1v + d2v)).toFixed(3);
+    area_lateral.textContent = ((2 * (d1v + d2v)) * d3v).toFixed(3);
+  }
+
+  function exportarExcel(tipo) {
+    if (tipo === 'tracos') {
+      const tracos = JSON.parse(localStorage.getItem('tracos') || '[]');
+      if (tracos.length === 0) { alert('Não há dados para exportar!'); return; }
+
+      const headers = ['ID Traço', 'Data', 'Insumo', 'Tipo', 'Densidade', 'Custo Unit.', 'Qtd', 'Volume', 'Custo'];
+      const ws_data = [headers];
+
+      tracos.forEach(traco => {
+        if (traco.itens && traco.itens.length > 0) {
+          traco.itens.forEach(item => {
+            ws_data.push([
+              traco.nome,
+              traco.data,
+              item.insumo || '',
+              item.tipo || '',
+              item.massa || '',
+              item.custo_unit || '',
+              item.quantidade || '',
+              item.volume || '',
+              item.custo_total || ''
+            ]);
+          });
+        }
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Traços');
+      XLSX.writeFile(wb, `tracos-${new Date().toISOString().slice(0,10)}.xlsx`);
+      return;
+    }
+
+    const map = {
+      insumos: {
+        headers: ['Data','Insumo','Tipo','Fornecedor','Unidade','Custo','Massa'],
+        keys: ['data','insumo','tipo','fornecedor','unidade','custo','massa'],
+        data: JSON.parse(localStorage.getItem('insumos') || '[]')
+      },
+      pecas: {
+        headers: ['Data','ID Peça','Dimensão 1','Dimensão 2','Dimensão 3','Área','Volume','Perímetro','Área Lateral','Arames'],
+        keys: ['data','id_peca','dimensao1','dimensao2','dimensao3','area','volume','perimetro','area_lateral','arames'],
+        data: JSON.parse(localStorage.getItem('pecas') || '[]')
+      },
+      producao: {
+        headers: [
+          'Data','ID Peça','Classificação','Quantidade','Traço',
+          'Custo Total','Custo/Peça','Custo/m²',
+          'Concreto Custo','Concreto Coef','Forma Custo','Forma Coef',
+          'Mão Obra Unit','Mão Obra Total','Total Final'
+        ],
+        keys: [
+          'data','idPeca','classificacao','quantidade','tracoNome',
+          'custoTotal','custoPeca','custoM2',
+          'concretoCusto','concretoCoef','formaCusto','formaCoef',
+          'maoObraUnit','maoObraTotal','totalFinal'
+        ],
+        data: JSON.parse(localStorage.getItem('producao') || '[]')
+      }
+    };
+
+    const info = map[tipo];
+    if (!info || info.data.length === 0) { alert('Não há dados para exportar!'); return; }
+
+    const ws_data = [info.headers];
+    info.data.forEach(row => {
+      const rowData = info.keys.map(key => row[key] !== undefined && row[key] !== null ? row[key] : '');
+      ws_data.push(rowData);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, tipo);
+    XLSX.writeFile(wb, `${tipo}-${new Date().toISOString().slice(0,10)}.xlsx`);
+  }
+
+  function importarArquivo(event, tipo) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith('.csv')) importarCsv(event, tipo);
+    else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) importarExcel(file, tipo);
+    else alert('Formato de arquivo não suportado. Use .xlsx, .xls ou .csv');
+  }
+
+  function importarExcel(file, tipo) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        if (jsonData.length < 2) { alert('Arquivo vazio ou sem dados!'); return; }
+        const rows = jsonData.slice(1);
+
+        if (tipo === 'tracos') {
+          const tracosMap = new Map();
+          rows.forEach(row => {
+            const idTraco = row[0];
+            const data = row[1];
+            if (!idTraco) return;
+
+            if (!tracosMap.has(idTraco)) {
+              tracosMap.set(idTraco, { nome: idTraco, data: data, itens: [] });
+            }
+
+            tracosMap.get(idTraco).itens.push({
+              insumo: row[2] || '',
+              tipo: row[3] || '',
+              massa: row[4] || '',
+              custo_unit: row[5] || '',
+              quantidade: row[6] || '',
+              volume: row[7] || '',
+              custo_total: row[8] || ''
+            });
+          });
+
+          localStorage.setItem('tracos', JSON.stringify(Array.from(tracosMap.values())));
+          renderTracos();
+          alert('✅ Arquivo Excel importado com sucesso!');
+        } else {
+          const keyMap = {
+            insumos: ['data','insumo','tipo','fornecedor','unidade','custo','massa'],
+            pecas: ['data','id_peca','dimensao1','dimensao2','dimensao3','area','volume','perimetro','area_lateral','arames'],
+            producao: [
+              'data','idPeca','classificacao','quantidade','tracoNome',
+              'custoTotal','custoPeca','custoM2',
+              'concretoCusto','concretoCoef','formaCusto','formaCoef',
+              'maoObraUnit','maoObraTotal','totalFinal'
+            ]
+          };
+
+          const keys = keyMap[tipo];
+          const dataList = rows.map(row => {
+            const obj = {};
+            keys.forEach((key, index) => obj[key] = row[index] !== undefined && row[index] !== null ? row[index] : '');
+            return obj;
+          });
+
+          localStorage.setItem(tipo, JSON.stringify(dataList));
+          if (tipo === 'insumos') renderInsumos();
+          if (tipo === 'pecas') renderPecas();
+          if (tipo === 'producao') renderProducao();
+          alert('✅ Arquivo Excel importado com sucesso!');
+        }
+      } catch (error) {
+        alert('❌ Erro ao importar arquivo: ' + error.message);
+        console.error(error);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function importarCsv(event, tipo) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const rows = parseCsv(e.target.result);
+      if (rows.length < 2) return;
+      const headers = rows[0];
+      const data = rows.slice(1).map(r => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = r[i] ?? '');
+        return obj;
+      });
+
+      if (tipo === 'tracos') {
+        data.forEach(t => {
+          try { t.itens = JSON.parse(t.itens || '[]'); } catch { t.itens = []; }
+        });
+      }
+
+      localStorage.setItem(tipo, JSON.stringify(data));
+      if (tipo === 'insumos') renderInsumos();
+      if (tipo === 'pecas') renderPecas();
+      if (tipo === 'tracos') renderTracos();
+      if (tipo === 'producao') renderProducao();
+      alert('✅ CSV importado!');
+    };
+    reader.readAsText(file);
+  }
+
+  function parseCsv(text) {
+    const rows = [];
+    let row = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const next = text[i + 1];
+      if (char === '"' && inQuotes && next === '"') { current += '"'; i++; }
+      else if (char === '"') { inQuotes = !inQuotes; }
+      else if (char === ',' && !inQuotes) { row.push(current); current = ''; }
+      else if (char === '\n' && !inQuotes) { row.push(current); rows.push(row); row = []; current = ''; }
+      else { current += char; }
+    }
+    row.push(current);
+    rows.push(row);
+    return rows.filter(r => r.some(c => c !== ''));
+  }
+
+  // ===== INSUMOS =====
+  function renderInsumos() {
+    const filtro = (document.getElementById('filtro-insumos').value || '').toLowerCase();
+    const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
+    const tbody = document.getElementById('lista-insumos');
+    tbody.innerHTML = '';
+    lista.filter(i => JSON.stringify(i).toLowerCase().includes(filtro)).forEach((i, idx) => {
+      const tr = document.createElement('tr');
+      tr.ondblclick = () => editarInsumo(idx);
+      tr.innerHTML = `
+        <td>${i.data}</td><td>${i.insumo}</td><td>${i.tipo}</td><td>${i.fornecedor}</td>
+        <td>${i.unidade}</td><td>${i.custo}</td><td>${i.massa}</td>
+        <td>
+          <button class="btn btn-dark" onclick="editarInsumo(${idx})">✏️ Editar</button>
+          <button class="btn-danger" onclick="excluirInsumo(${idx})">🗑️</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function editarInsumo(index) {
+    const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
+    const i = lista[index];
+    editInsumoIndex = index;
+    insumo.value = i.insumo;
+    tipo.value = i.tipo;
+    fornecedor.value = i.fornecedor;
+    unidade.value = i.unidade;
+    custo.value = i.custo;
+    massa.value = i.massa;
+  }
+
+  function excluirInsumo(index) {
+    const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
+    lista.splice(index, 1);
+    localStorage.setItem('insumos', JSON.stringify(lista));
+    renderInsumos();
+  }
+
+  formInsumo.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
+    const dados = {
+      data: new Date().toLocaleString('pt-BR'),
+      insumo: insumo.value,
+      tipo: tipo.value,
+      fornecedor: fornecedor.value,
+      unidade: unidade.value,
+      custo: custo.value,
+      massa: massa.value
+    };
+    if (editInsumoIndex !== null) { lista[editInsumoIndex] = { ...lista[editInsumoIndex], ...dados }; editInsumoIndex = null; }
+    else lista.push(dados);
+    localStorage.setItem('insumos', JSON.stringify(lista));
+    this.reset();
+    renderInsumos();
+  });
+
+  // ===== PEÇAS =====
+  function renderPecas() {
+    const filtro = (document.getElementById('filtro-pecas').value || '').toLowerCase();
+    const lista = JSON.parse(localStorage.getItem('pecas') || '[]');
+    const tbody = document.getElementById('lista-pecas');
+    tbody.innerHTML = '';
+    lista.filter(p => JSON.stringify(p).toLowerCase().includes(filtro)).forEach((p, idx) => {
+      const tr = document.createElement('tr');
+      tr.ondblclick = () => editarPeca(idx);
+      tr.innerHTML = `
+        <td>${p.data}</td><td>${p.id_peca}</td><td>${p.dimensao1}</td><td>${p.dimensao2}</td>
+        <td>${p.dimensao3}</td><td>${p.area}</td><td>${p.volume}</td><td>${p.perimetro}</td>
+        <td>${p.area_lateral}</td><td>${p.arames}</td>
+        <td>
+          <button class="btn btn-dark" onclick="editarPeca(${idx})">✏️ Editar</button>
+          <button class="btn-danger" onclick="excluirPeca(${idx})">🗑️</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function editarPeca(index) {
+    const lista = JSON.parse(localStorage.getItem('pecas') || '[]');
+    const p = lista[index];
+    editPecaIndex = index;
+    id_peca.value = p.id_peca;
+    d1.value = p.dimensao1;
+    d2.value = p.dimensao2;
+    d3.value = p.dimensao3;
+    arames.value = p.arames;
+    calcular();
+  }
+
+  function excluirPeca(index) {
+    const lista = JSON.parse(localStorage.getItem('pecas') || '[]');
+    lista.splice(index, 1);
+    localStorage.setItem('pecas', JSON.stringify(lista));
+    renderPecas();
+  }
+
+  formPeca.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const d1v = parseFloat(d1.value);
+    const d2v = parseFloat(d2.value);
+    const d3v = parseFloat(d3.value);
+
+    const dados = {
+      data: new Date().toLocaleString('pt-BR'),
+      id_peca: id_peca.value,
+      dimensao1: d1v, dimensao2: d2v, dimensao3: d3v,
+      area: d1v * d2v,
+      volume: d1v * d2v * d3v,
+      perimetro: 2 * (d1v + d2v),
+      area_lateral: (2 * (d1v + d2v)) * d3v,
+      arames: arames.value
+    };
+
+    const lista = JSON.parse(localStorage.getItem('pecas') || '[]');
+    if (editPecaIndex !== null) { lista[editPecaIndex] = { ...lista[editPecaIndex], ...dados }; editPecaIndex = null; }
+    else lista.push(dados);
+    localStorage.setItem('pecas', JSON.stringify(lista));
+    this.reset();
+    calcular();
+    renderPecas();
+  });
+
+  // ===== TRAÇOS =====
+  function prepararTracos() {
+    const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
+    const insumosUnicos = [...new Set(lista.map(i => i.insumo))];
+    traco_insumo.innerHTML = '<option value="">Selecione</option>' + insumosUnicos.map(i => `<option value="${i}">${i}</option>`).join('');
+    traco_tipo.innerHTML = '<option value="">Selecione</option>';
+  }
+
+  function atualizarTiposTraco() {
+    const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
+    const insumoSel = traco_insumo.value;
+    const tipos = [...new Set(lista.filter(i => i.insumo === insumoSel).map(i => i.tipo))];
+    traco_tipo.innerHTML = '<option value="">Selecione</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+  }
+
+  function atualizarMassaTraco() {
+    const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
+    const achado = lista.find(i => i.insumo === traco_insumo.value && i.tipo === traco_tipo.value);
+    traco_massa.value = achado ? achado.massa : '';
+    traco_custo_unit.value = achado ? achado.custo : '';
+    traco_qtd.value = '';
+    traco_volume_item.value = '';
+    traco_custo_total_item.value = '';
+  }
+
+  function recalcularItemPorQuantidade() {
+    const qtd = parseFloat(traco_qtd.value) || 0;
+    const massa = parseFloat(traco_massa.value) || 0;
+    const custoUnit = parseFloat(traco_custo_unit.value) || 0;
+    traco_volume_item.value = (massa > 0 ? qtd / massa : 0).toFixed(6);
+    traco_custo_total_item.value = (qtd * custoUnit).toFixed(2);
+  }
+
+  function adicionarItemTraco() {
+    if (!traco_insumo.value || !traco_tipo.value || !traco_massa.value || !traco_qtd.value) return;
+    itensTraco.push({
+      insumo: traco_insumo.value,
+      tipo: traco_tipo.value,
+      massa: traco_massa.value,
+      custo_unit: traco_custo_unit.value,
+      quantidade: traco_qtd.value,
+      volume: traco_volume_item.value,
+      custo_total: traco_custo_total_item.value
+    });
+    renderItensTraco();
+    atualizarResumoTraco();
+  }
+
+  function renderItensTraco() {
+    const tbody = document.getElementById('lista-itens-traco');
+    tbody.innerHTML = '';
+    itensTraco.forEach((i, idx) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${i.insumo}</td><td>${i.tipo}</td><td>${i.massa}</td><td>${i.custo_unit}</td>
+          <td>${i.quantidade}</td><td>${i.volume}</td><td>${i.custo_total}</td>
+          <td><button class="btn-danger" onclick="removerItemTraco(${idx})">🗑️</button></td>
+        </tr>`;
+    });
+  }
+
+  function removerItemTraco(index) {
+    itensTraco.splice(index, 1);
+    renderItensTraco();
+    atualizarResumoTraco();
+  }
+
+  function atualizarResumoTraco() {
+    const totalVolume = itensTraco.reduce((acc, i) => acc + (parseFloat(i.volume) || 0), 0);
+    const totalCusto = itensTraco.reduce((acc, i) => acc + (parseFloat(i.custo_total) || 0), 0);
+    traco_volume_total.value = totalVolume.toFixed(6);
+    traco_custo_total.value = totalCusto.toFixed(2);
+  }
+
+  function ajustarVolumeTotal() {
+    const desejado = parseFloat(traco_volume_desejado_total.value) || 0;
+    const volumeAtual = itensTraco.reduce((acc, i) => acc + (parseFloat(i.volume) || 0), 0);
+    if (volumeAtual <= 0) return;
+    const fator = desejado / volumeAtual;
+    itensTraco = itensTraco.map(i => ({
+      ...i,
+      quantidade: (parseFloat(i.quantidade) * fator).toFixed(3),
+      volume: (parseFloat(i.volume) * fator).toFixed(6),
+      custo_total: (parseFloat(i.custo_total) * fator).toFixed(2)
+    }));
+    renderItensTraco();
+    atualizarResumoTraco();
+  }
+
+  function salvarTraco() {
+    if (!traco_nome.value.trim() || itensTraco.length === 0) return;
+    const lista = JSON.parse(localStorage.getItem('tracos') || '[]');
+    const dados = { data: new Date().toLocaleString('pt-BR'), nome: traco_nome.value.trim(), itens: itensTraco };
+    if (editTracoIndex !== null) { lista[editTracoIndex] = { ...lista[editTracoIndex], ...dados }; editTracoIndex = null; }
+    else lista.push(dados);
+    localStorage.setItem('tracos', JSON.stringify(lista));
+    itensTraco = [];
+    traco_nome.value = '';
+    traco_volume_desejado_total.value = '';
+    renderItensTraco();
+    atualizarResumoTraco();
+    renderTracos();
+  }
+
+  function editarTraco(index) {
+    const lista = JSON.parse(localStorage.getItem('tracos') || '[]');
+    const t = lista[index];
+    editTracoIndex = index;
+    traco_nome.value = t.nome;
+    itensTraco = JSON.parse(JSON.stringify(t.itens));
+    renderItensTraco();
+    atualizarResumoTraco();
+  }
+
+  function excluirTraco(index) {
+    const lista = JSON.parse(localStorage.getItem('tracos') || '[]');
+    lista.splice(index, 1);
+    localStorage.setItem('tracos', JSON.stringify(lista));
+    renderTracos();
+  }
+
+  function renderTracos() {
+    const filtro = (document.getElementById('filtro-tracos').value || '').toLowerCase();
+    const lista = JSON.parse(localStorage.getItem('tracos') || '[]');
+    const tbody = document.getElementById('lista-tracos');
+    tbody.innerHTML = '';
+    lista.filter(t => JSON.stringify(t).toLowerCase().includes(filtro)).forEach((t, idx) => {
+      const itens = t.itens.map(i => `${i.insumo}/${i.tipo} Q:${i.quantidade} V:${i.volume}`).join('<br>');
+      const tr = document.createElement('tr');
+      tr.ondblclick = () => editarTraco(idx);
+      tr.innerHTML = `
+        <td>${t.data}</td><td>${t.nome}</td><td>${itens}</td>
+        <td>
+          <button class="btn btn-dark" onclick="editarTraco(${idx})">✏️ Editar</button>
+          <button class="btn-danger" onclick="excluirTraco(${idx})">🗑️</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ===== PRODUÇÃO / CUSTOS =====
+  function prepararCustos() {
+    const pecas = JSON.parse(localStorage.getItem('pecas') || '[]');
+    const tracos = JSON.parse(localStorage.getItem('tracos') || '[]');
+    const insumos = JSON.parse(localStorage.getItem('insumos') || '[]');
+
+    custo_id_peca.innerHTML = '<option value="">Selecione</option>' +
+      pecas.map(p => `<option value="${p.id_peca}">${p.id_peca}</option>`).join('');
+
+    const tipos = [...new Set(insumos.map(i => i.tipo))];
+    const opts = '<option value="">Selecione</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+
+    forma_base_tipo.innerHTML = opts;
+    forma_lateral_tipo.innerHTML = opts;
+    armacao_insumo.innerHTML = opts;
+    desmoldante_tipo.innerHTML = opts;
+
+    custo_traco_id.innerHTML = '<option value="">Selecione</option>' +
+      tracos.map((t, i) => `<option value="${i}">${t.nome}</option>`).join('');
+  }
+
+  function atualizarDadosPeca() { recalcularCustos(); }
+
+  function obterPeca() {
+    const pecas = JSON.parse(localStorage.getItem('pecas') || '[]');
+    return pecas.find(p => p.id_peca === custo_id_peca.value);
+  }
+
+  function obterInsumoPorTipo(tipo) {
+    const insumos = JSON.parse(localStorage.getItem('insumos') || '[]');
+    return insumos.find(i => i.tipo === tipo);
+  }
+
+  function obterTraco() {
+    const tracos = JSON.parse(localStorage.getItem('tracos') || '[]');
+    return custo_traco_id.value !== '' ? tracos[parseInt(custo_traco_id.value, 10)] : null;
+  }
+
+  function recalcularCustos() {
+    const peca = obterPeca();
+    const qtd = parseFloat(custo_qtd_pecas.value) || 0;
+    if (!peca || qtd <= 0) return;
+
+    const coefFormaBase = percentToMultiplier(document.getElementById('coef_forma_base')?.value);
+    const coefFormaLateral = percentToMultiplier(document.getElementById('coef_forma_lateral')?.value);
+    const coefTraco = percentToMultiplier(document.getElementById('coef_traco')?.value);
+    const coefArmacao = percentToMultiplier(document.getElementById('coef_armacao')?.value);
+    const coefDesmoldante = percentToMultiplier(document.getElementById('coef_desmoldante')?.value);
+
+    const areaTotal = (parseFloat(peca.area) || 0) * qtd;
+    const areaLateralTotal = (parseFloat(peca.area_lateral) || 0) * qtd;
+    const volumeTotal = (parseFloat(peca.volume) || 0) * qtd;
+
+    area_total.value = areaTotal.toFixed(3);
+    area_lateral_total.value = areaLateralTotal.toFixed(3);
+    volume_total.value = volumeTotal.toFixed(6);
+
+    const base = obterInsumoPorTipo(forma_base_tipo.value);
+    const lateral = obterInsumoPorTipo(forma_lateral_tipo.value);
+
+    const custoBase = base ? areaTotal * parseFloat(base.custo || 0) * coefFormaBase : 0;
+    const custoLateral = lateral ? areaLateralTotal * parseFloat(lateral.custo || 0) * coefFormaLateral : 0;
+
+    custo_forma_base.value = custoBase.toFixed(2);
+    custo_forma_lateral.value = custoLateral.toFixed(2);
+
+    const traco = obterTraco();
+    let custoTraco = 0;
+    if (traco) {
+      const totalCusto = traco.itens.reduce((acc, i) => acc + (parseFloat(i.custo_total) || 0), 0);
+      custoTraco = totalCusto * volumeTotal * coefTraco;
+    }
+    custo_traco.value = custoTraco.toFixed(2);
+
+    const armacao = obterInsumoPorTipo(armacao_insumo.value);
+    let custoArmacao = 0;
+    if (armacao) {
+      if (armacao_tipo.value === 'ARAME') {
+        const maiorDim = Math.max(parseFloat(peca.dimensao1 || 0), parseFloat(peca.dimensao2 || 0));
+        const totalComp = maiorDim * (parseInt(peca.arames || 0, 10)) * qtd;
+        custoArmacao = totalComp * parseFloat(armacao.custo || 0);
+      } else {
+        custoArmacao = areaTotal * parseFloat(armacao.custo || 0);
+      }
+    }
+    custoArmacao = custoArmacao * coefArmacao;
+    custo_armacao.value = custoArmacao.toFixed(2);
+
+    const desm = obterInsumoPorTipo(desmoldante_tipo.value);
+    const consumo = parseFloat(desmoldante_consumo.value) || 0;
+    const custoDesm = desm ? areaTotal * consumo * parseFloat(desm.custo || 0) * coefDesmoldante : 0;
+    custo_desmoldante.value = custoDesm.toFixed(2);
+
+    const total = custoBase + custoLateral + custoTraco + custoArmacao + custoDesm;
+    resultado_total.value = total.toFixed(2);
+    resultado_por_peca.value = (total / qtd).toFixed(2);
+    resultado_por_m2.value = (areaTotal > 0 ? total / areaTotal : 0).toFixed(2);
+  }
+
+  function salvarProducao() {
+    const idPeca = custo_id_peca.value;
+    if (!idPeca) return;
+
+    const dados = {
+      data: new Date().toLocaleString('pt-BR'),
+      idPeca,
+      classificacao: custo_classificacao.value,
+      quantidade: custo_qtd_pecas.value,
+      tracoNome: custo_traco_id.options[custo_traco_id.selectedIndex]?.text || '',
+      coefFormaBase: (document.getElementById('coef_forma_base')?.value || '0'),
+      coefFormaLateral: (document.getElementById('coef_forma_lateral')?.value || '0'),
+      coefTraco: (document.getElementById('coef_traco')?.value || '0'),
+      coefArmacao: (document.getElementById('coef_armacao')?.value || '0'),
+      coefDesmoldante: (document.getElementById('coef_desmoldante')?.value || '0'),
+      custoTotal: resultado_total.value,
+      custoPeca: resultado_por_peca.value,
+      custoM2: resultado_por_m2.value
+    };
+
+    const lista = JSON.parse(localStorage.getItem('producao') || '[]');
+    if (editProducaoIndex !== null) {
+      lista[editProducaoIndex] = { ...lista[editProducaoIndex], ...dados };
+      editProducaoIndex = null;
+    } else {
+      lista.push(dados);
+    }
+    localStorage.setItem('producao', JSON.stringify(lista));
+    renderProducao();
+  }
+
+  function renderProducao() {
+    const filtro = (document.getElementById('filtro-producao').value || '').toLowerCase();
+    const lista = JSON.parse(localStorage.getItem('producao') || '[]');
+    const tbody = document.getElementById('lista-producao');
+    tbody.innerHTML = '';
+    lista.filter(p => JSON.stringify(p).toLowerCase().includes(filtro)).forEach((p, i) => {
+      const tr = document.createElement('tr');
+      tr.ondblclick = () => editarProducao(i);
+      tr.innerHTML = `
+        <td>${p.data}</td><td>${p.idPeca}</td><td>${p.classificacao}</td><td>${p.quantidade}</td>
+        <td>${p.tracoNome}</td><td>${p.custoTotal}</td><td>${p.custoPeca}</td><td>${p.custoM2}</td>
+        <td>${p.maoObraTotal || ''}</td><td>${p.totalFinal || ''}</td>
+        <td>
+          <button class="btn btn-dark" onclick="editarProducao(${i})">✏️ Editar</button>
+          <button class="btn btn-dark" onclick="abrirMaoObra(${i})">🧑‍🏭</button>
+          <button class="btn-danger" onclick="excluirProducao(${i})">🗑️</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function editarProducao(index) {
+    const lista = JSON.parse(localStorage.getItem('producao') || '[]');
+    const p = lista[index];
+    editProducaoIndex = index;
+    custo_id_peca.value = p.idPeca;
+    custo_classificacao.value = p.classificacao;
+    custo_qtd_pecas.value = p.quantidade;
+
+    document.getElementById('coef_forma_base').value = (p.coefFormaBase ?? '0');
+    document.getElementById('coef_forma_lateral').value = (p.coefFormaLateral ?? '0');
+    document.getElementById('coef_traco').value = (p.coefTraco ?? '0');
+    document.getElementById('coef_armacao').value = (p.coefArmacao ?? '0');
+    document.getElementById('coef_desmoldante').value = (p.coefDesmoldante ?? '0');
+
+    const tracos = JSON.parse(localStorage.getItem('tracos') || '[]');
+    const idxTraco = tracos.findIndex(t => t.nome === p.tracoNome);
+    if (idxTraco >= 0) custo_traco_id.value = idxTraco;
+    recalcularCustos();
+  }
+
+  function abrirMaoObra(index) {
+    const lista = JSON.parse(localStorage.getItem('producao') || '[]');
+    const p = lista[index];
+    maoObraIndex = index;
+
+    document.getElementById('card-mao-obra').classList.remove('hidden');
+    document.getElementById('mao_obra_ref').value = `${p.idPeca} | ${p.data}`;
+    document.getElementById('mao_qtd_dia').value = p.quantidade || '';
+    document.getElementById('concreto_custo').value = p.concretoCusto || '';
+    document.getElementById('concreto_coef').value = p.concretoCoef || '';
+    document.getElementById('forma_custo').value = p.formaCusto || '';
+    document.getElementById('forma_coef').value = p.formaCoef || '';
+
+    calcularMaoObra();
+  }
+
+  function calcularMaoObra() {
+    if (maoObraIndex === null) return;
+
+    const qtdDia = parseFloat(document.getElementById('mao_qtd_dia').value) || 0;
+
+    const concretoCusto = parseFloat(document.getElementById('concreto_custo').value) || 0;
+    const concretoCoef = parseFloat(document.getElementById('concreto_coef').value) || 0;
+    const concretoUnit = qtdDia > 0 ? (concretoCusto * concretoCoef) / qtdDia : 0;
+
+    const formaCusto = parseFloat(document.getElementById('forma_custo').value) || 0;
+    const formaCoef = parseFloat(document.getElementById('forma_coef').value) || 0;
+    const formaUnit = qtdDia > 0 ? (formaCusto * formaCoef) / qtdDia : 0;
+
+    const unitTotal = concretoUnit + formaUnit;
+
+    document.getElementById('concreto_unit').value = concretoUnit.toFixed(2);
+    document.getElementById('forma_unit').value = formaUnit.toFixed(2);
+    document.getElementById('mao_unit_total').value = unitTotal.toFixed(2);
+
+    const lista = JSON.parse(localStorage.getItem('producao') || '[]');
+    const p = lista[maoObraIndex];
+    const qtdProducao = parseFloat(p.quantidade || 0);
+    const maoTotal = unitTotal * qtdProducao;
+    const totalFinal = (parseFloat(p.custoTotal || 0) + maoTotal);
+
+    document.getElementById('mao_total').value = maoTotal.toFixed(2);
+    document.getElementById('mao_total_final').value = totalFinal.toFixed(2);
+  }
+
+  function salvarMaoObra() {
+    if (maoObraIndex === null) return;
+
+    const lista = JSON.parse(localStorage.getItem('producao') || '[]');
+    const p = lista[maoObraIndex];
+
+    p.concretoCusto = document.getElementById('concreto_custo').value;
+    p.concretoCoef = document.getElementById('concreto_coef').value;
+    p.formaCusto = document.getElementById('forma_custo').value;
+    p.formaCoef = document.getElementById('forma_coef').value;
+    p.maoObraUnit = document.getElementById('mao_unit_total').value;
+    p.maoObraTotal = document.getElementById('mao_total').value;
+    p.totalFinal = document.getElementById('mao_total_final').value;
+
+    lista[maoObraIndex] = p;
+    localStorage.setItem('producao', JSON.stringify(lista));
+    renderProducao();
+    alert('✅ Mão de obra salva!');
+  }
+
+  function excluirProducao(index) {
+    const lista = JSON.parse(localStorage.getItem('producao') || '[]');
+    lista.splice(index, 1);
+    localStorage.setItem('producao', JSON.stringify(lista));
+    renderProducao();
+  }
+
+  // boot
+  (function init() {
+    loadUsers(); // ensures admin exists
+    const s = getSession();
+    if (s) showAppUI();
+    else showLoginUI();
+  })();
+</script>
+
+</body>
+</html>
