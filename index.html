@@ -324,6 +324,10 @@
           <select id="traco_tipo" onchange="atualizarMassaTraco()" required></select>
         </div>
         <div>
+          <label>Fornecedor</label>
+          <input type="text" id="traco_fornecedor" readonly>
+        </div>
+        <div>
           <label>Densidade (kg/m³)</label>
           <input type="text" id="traco_massa" readonly>
         </div>
@@ -356,7 +360,7 @@
       <table>
         <thead>
           <tr>
-            <th>Insumo</th><th>Tipo</th><th>Densidade</th><th>Custo Unit.</th><th>Qtd</th><th>Volume</th><th>Custo</th><th>Ação</th>
+            <th>Insumo</th><th>Tipo</th><th>Fornecedor</th><th>Densidade</th><th>Custo Unit.</th><th>Qtd</th><th>Volume</th><th>Custo</th><th>Ação</th>
           </tr>
         </thead>
         <tbody id="lista-itens-traco"></tbody>
@@ -553,18 +557,26 @@
       <h3>Resultados</h3>
       <div class="row">
         <div>
-          <label>Custo Total</label>
+          <label>Custo Total (Produção)</label>
           <input class="total" type="text" id="resultado_total" readonly>
         </div>
         <div>
-          <label>Custo por Peça</label>
+          <label>Custo por Peça (Produção)</label>
           <input class="total" type="text" id="resultado_por_peca" readonly>
         </div>
         <div>
-          <label>Custo por m²</label>
+          <label>Custo por m² (Produção)</label>
           <input class="total" type="text" id="resultado_por_m2" readonly>
         </div>
       </div>
+
+      <div class="row">
+        <div>
+          <label>Custo por m² (Produção + Mão de Obra)</label>
+          <input class="total" type="text" id="resultado_por_m2_com_mao" readonly>
+        </div>
+      </div>
+      <p class="hint">Obs.: esse valor aparece ao editar um registro que já tenha mão de obra salva, ou após salvar a mão de obra (🧑‍🏭).</p>
     </div>
 
     <div class="card">
@@ -609,10 +621,18 @@
         <div><label>Custo Unitário</label><input type="text" id="forma_unit" readonly></div>
       </div>
 
+      <h4>Etapa 3 - Lapidação</h4>
+      <div class="row">
+        <div><label>Custo Mão de Obra</label><input type="number" id="lapidacao_custo" oninput="calcularMaoObra()"></div>
+        <div><label>Coeficiente de Majoração</label><input type="number" step="0.01" id="lapidacao_coef" oninput="calcularMaoObra()"></div>
+        <div><label>Custo Unitário</label><input type="text" id="lapidacao_unit" readonly></div>
+      </div>
+
       <div class="row">
         <div><label>Custo Unitário Total</label><input type="text" id="mao_unit_total" readonly></div>
         <div><label>Custo Total Mão de Obra</label><input type="text" id="mao_total" readonly></div>
         <div><label>Total Final (Produção + MO)</label><input type="text" id="mao_total_final" readonly></div>
+        <div><label>Custo Final por m² (Produção + MO)</label><input type="text" id="mao_total_m2_final" readonly></div>
       </div>
 
       <button class="btn btn-quaternary" onclick="salvarMaoObra()">Salvar Mão de Obra</button>
@@ -634,7 +654,6 @@
     if (raw) {
       try { return JSON.parse(raw); } catch { /* ignore */ }
     }
-    // seed default admin
     const seed = [{ login: ADMIN_LOGIN, senha: ADMIN_PASSWORD, role: "admin" }];
     localStorage.setItem(LS_USERS, JSON.stringify(seed));
     return seed;
@@ -784,7 +803,7 @@
     }, 2000);
   });
 
-  // ===== APP (original) =====
+  // ===== APP =====
   let itensTraco = [];
   let editInsumoIndex = null;
   let editPecaIndex = null;
@@ -836,7 +855,7 @@
       const tracos = JSON.parse(localStorage.getItem('tracos') || '[]');
       if (tracos.length === 0) { alert('Não há dados para exportar!'); return; }
 
-      const headers = ['ID Traço', 'Data', 'Insumo', 'Tipo', 'Densidade', 'Custo Unit.', 'Qtd', 'Volume', 'Custo'];
+      const headers = ['ID Traço', 'Data', 'Insumo', 'Tipo', 'Fornecedor', 'Densidade', 'Custo Unit.', 'Qtd', 'Volume', 'Custo'];
       const ws_data = [headers];
 
       tracos.forEach(traco => {
@@ -847,6 +866,7 @@
               traco.data,
               item.insumo || '',
               item.tipo || '',
+              item.fornecedor || '',
               item.massa || '',
               item.custo_unit || '',
               item.quantidade || '',
@@ -880,13 +900,15 @@
           'Data','ID Peça','Classificação','Quantidade','Traço',
           'Custo Total','Custo/Peça','Custo/m²',
           'Concreto Custo','Concreto Coef','Forma Custo','Forma Coef',
-          'Mão Obra Unit','Mão Obra Total','Total Final'
+          'Lapidação Custo','Lapidação Coef',
+          'Mão Obra Unit','Mão Obra Total','Total Final','Total Final/m²'
         ],
         keys: [
           'data','idPeca','classificacao','quantidade','tracoNome',
           'custoTotal','custoPeca','custoM2',
           'concretoCusto','concretoCoef','formaCusto','formaCoef',
-          'maoObraUnit','maoObraTotal','totalFinal'
+          'lapidacaoCusto','lapidacaoCoef',
+          'maoObraUnit','maoObraTotal','totalFinal','totalFinalM2'
         ],
         data: JSON.parse(localStorage.getItem('producao') || '[]')
       }
@@ -943,11 +965,12 @@
             tracosMap.get(idTraco).itens.push({
               insumo: row[2] || '',
               tipo: row[3] || '',
-              massa: row[4] || '',
-              custo_unit: row[5] || '',
-              quantidade: row[6] || '',
-              volume: row[7] || '',
-              custo_total: row[8] || ''
+              fornecedor: row[4] || '',
+              massa: row[5] || '',
+              custo_unit: row[6] || '',
+              quantidade: row[7] || '',
+              volume: row[8] || '',
+              custo_total: row[9] || ''
             });
           });
 
@@ -962,7 +985,8 @@
               'data','idPeca','classificacao','quantidade','tracoNome',
               'custoTotal','custoPeca','custoM2',
               'concretoCusto','concretoCoef','formaCusto','formaCoef',
-              'maoObraUnit','maoObraTotal','totalFinal'
+              'lapidacaoCusto','lapidacaoCoef',
+              'maoObraUnit','maoObraTotal','totalFinal','totalFinalM2'
             ]
           };
 
@@ -1166,6 +1190,9 @@
     const insumosUnicos = [...new Set(lista.map(i => i.insumo))];
     traco_insumo.innerHTML = '<option value="">Selecione</option>' + insumosUnicos.map(i => `<option value="${i}">${i}</option>`).join('');
     traco_tipo.innerHTML = '<option value="">Selecione</option>';
+
+    const elFornecedor = document.getElementById('traco_fornecedor');
+    if (elFornecedor) elFornecedor.value = '';
   }
 
   function atualizarTiposTraco() {
@@ -1173,11 +1200,16 @@
     const insumoSel = traco_insumo.value;
     const tipos = [...new Set(lista.filter(i => i.insumo === insumoSel).map(i => i.tipo))];
     traco_tipo.innerHTML = '<option value="">Selecione</option>' + tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+
+    const elFornecedor = document.getElementById('traco_fornecedor');
+    if (elFornecedor) elFornecedor.value = '';
   }
 
   function atualizarMassaTraco() {
     const lista = JSON.parse(localStorage.getItem('insumos') || '[]');
     const achado = lista.find(i => i.insumo === traco_insumo.value && i.tipo === traco_tipo.value);
+
+    document.getElementById('traco_fornecedor').value = achado ? (achado.fornecedor || '') : '';
     traco_massa.value = achado ? achado.massa : '';
     traco_custo_unit.value = achado ? achado.custo : '';
     traco_qtd.value = '';
@@ -1198,6 +1230,7 @@
     itensTraco.push({
       insumo: traco_insumo.value,
       tipo: traco_tipo.value,
+      fornecedor: (document.getElementById('traco_fornecedor').value || ''),
       massa: traco_massa.value,
       custo_unit: traco_custo_unit.value,
       quantidade: traco_qtd.value,
@@ -1214,7 +1247,7 @@
     itensTraco.forEach((i, idx) => {
       tbody.innerHTML += `
         <tr>
-          <td>${i.insumo}</td><td>${i.tipo}</td><td>${i.massa}</td><td>${i.custo_unit}</td>
+          <td>${i.insumo}</td><td>${i.tipo}</td><td>${i.fornecedor || ''}</td><td>${i.massa}</td><td>${i.custo_unit}</td>
           <td>${i.quantidade}</td><td>${i.volume}</td><td>${i.custo_total}</td>
           <td><button class="btn-danger" onclick="removerItemTraco(${idx})">🗑️</button></td>
         </tr>`;
@@ -1270,6 +1303,7 @@
     editTracoIndex = index;
     traco_nome.value = t.nome;
     itensTraco = JSON.parse(JSON.stringify(t.itens));
+    itensTraco = itensTraco.map(i => ({ fornecedor: '', ...i }));
     renderItensTraco();
     atualizarResumoTraco();
   }
@@ -1287,7 +1321,7 @@
     const tbody = document.getElementById('lista-tracos');
     tbody.innerHTML = '';
     lista.filter(t => JSON.stringify(t).toLowerCase().includes(filtro)).forEach((t, idx) => {
-      const itens = t.itens.map(i => `${i.insumo}/${i.tipo} Q:${i.quantidade} V:${i.volume}`).join('<br>');
+      const itens = t.itens.map(i => `${i.insumo}/${i.tipo}${i.fornecedor ? ` (${i.fornecedor})` : ''} Q:${i.quantidade} V:${i.volume}`).join('<br>');
       const tr = document.createElement('tr');
       tr.ondblclick = () => editarTraco(idx);
       tr.innerHTML = `
@@ -1397,6 +1431,14 @@
     resultado_total.value = total.toFixed(2);
     resultado_por_peca.value = (total / qtd).toFixed(2);
     resultado_por_m2.value = (areaTotal > 0 ? total / areaTotal : 0).toFixed(2);
+
+    // mantém campo "produção + MO" se existir MO salva para o item em edição
+    const el = document.getElementById('resultado_por_m2_com_mao');
+    if (el) {
+      const listaProd = JSON.parse(localStorage.getItem('producao') || '[]');
+      const pEdit = editProducaoIndex !== null ? listaProd[editProducaoIndex] : null;
+      el.value = pEdit?.totalFinalM2 || '';
+    }
   }
 
   function salvarProducao() {
@@ -1421,11 +1463,12 @@
 
     const lista = JSON.parse(localStorage.getItem('producao') || '[]');
     if (editProducaoIndex !== null) {
+      // preserva campos de mão de obra já salvos
       lista[editProducaoIndex] = { ...lista[editProducaoIndex], ...dados };
-      editProducaoIndex = null;
     } else {
       lista.push(dados);
     }
+
     localStorage.setItem('producao', JSON.stringify(lista));
     renderProducao();
   }
@@ -1455,6 +1498,7 @@
     const lista = JSON.parse(localStorage.getItem('producao') || '[]');
     const p = lista[index];
     editProducaoIndex = index;
+
     custo_id_peca.value = p.idPeca;
     custo_classificacao.value = p.classificacao;
     custo_qtd_pecas.value = p.quantidade;
@@ -1468,7 +1512,12 @@
     const tracos = JSON.parse(localStorage.getItem('tracos') || '[]');
     const idxTraco = tracos.findIndex(t => t.nome === p.tracoNome);
     if (idxTraco >= 0) custo_traco_id.value = idxTraco;
+
     recalcularCustos();
+
+    // mostra custo/m² com mão de obra, se existir
+    const el = document.getElementById('resultado_por_m2_com_mao');
+    if (el) el.value = p.totalFinalM2 || '';
   }
 
   function abrirMaoObra(index) {
@@ -1479,10 +1528,14 @@
     document.getElementById('card-mao-obra').classList.remove('hidden');
     document.getElementById('mao_obra_ref').value = `${p.idPeca} | ${p.data}`;
     document.getElementById('mao_qtd_dia').value = p.quantidade || '';
+
     document.getElementById('concreto_custo').value = p.concretoCusto || '';
     document.getElementById('concreto_coef').value = p.concretoCoef || '';
     document.getElementById('forma_custo').value = p.formaCusto || '';
     document.getElementById('forma_coef').value = p.formaCoef || '';
+
+    document.getElementById('lapidacao_custo').value = p.lapidacaoCusto || '';
+    document.getElementById('lapidacao_coef').value = p.lapidacaoCoef || '';
 
     calcularMaoObra();
   }
@@ -1500,20 +1553,38 @@
     const formaCoef = parseFloat(document.getElementById('forma_coef').value) || 0;
     const formaUnit = qtdDia > 0 ? (formaCusto * formaCoef) / qtdDia : 0;
 
-    const unitTotal = concretoUnit + formaUnit;
+    const lapidacaoCusto = parseFloat(document.getElementById('lapidacao_custo').value) || 0;
+    const lapidacaoCoef = parseFloat(document.getElementById('lapidacao_coef').value) || 0;
+    const lapidacaoUnit = qtdDia > 0 ? (lapidacaoCusto * lapidacaoCoef) / qtdDia : 0;
+
+    const unitTotal = concretoUnit + formaUnit + lapidacaoUnit;
 
     document.getElementById('concreto_unit').value = concretoUnit.toFixed(2);
     document.getElementById('forma_unit').value = formaUnit.toFixed(2);
+    document.getElementById('lapidacao_unit').value = lapidacaoUnit.toFixed(2);
     document.getElementById('mao_unit_total').value = unitTotal.toFixed(2);
 
     const lista = JSON.parse(localStorage.getItem('producao') || '[]');
     const p = lista[maoObraIndex];
+
     const qtdProducao = parseFloat(p.quantidade || 0);
     const maoTotal = unitTotal * qtdProducao;
     const totalFinal = (parseFloat(p.custoTotal || 0) + maoTotal);
 
     document.getElementById('mao_total').value = maoTotal.toFixed(2);
     document.getElementById('mao_total_final').value = totalFinal.toFixed(2);
+
+    // custo final por m² = produção/m² + MO/m²
+    const pecas = JSON.parse(localStorage.getItem('pecas') || '[]');
+    const peca = pecas.find(x => x.id_peca === p.idPeca);
+    const areaPeca = parseFloat(peca?.area || 0);
+    const areaTotal = areaPeca * qtdProducao;
+
+    const custoProducaoM2 = parseFloat(p.custoM2 || 0);
+    const maoPorM2 = areaTotal > 0 ? (maoTotal / areaTotal) : 0;
+    const totalFinalM2 = custoProducaoM2 + maoPorM2;
+
+    document.getElementById('mao_total_m2_final').value = totalFinalM2.toFixed(2);
   }
 
   function salvarMaoObra() {
@@ -1526,13 +1597,23 @@
     p.concretoCoef = document.getElementById('concreto_coef').value;
     p.formaCusto = document.getElementById('forma_custo').value;
     p.formaCoef = document.getElementById('forma_coef').value;
+
+    p.lapidacaoCusto = document.getElementById('lapidacao_custo').value;
+    p.lapidacaoCoef = document.getElementById('lapidacao_coef').value;
+
     p.maoObraUnit = document.getElementById('mao_unit_total').value;
     p.maoObraTotal = document.getElementById('mao_total').value;
     p.totalFinal = document.getElementById('mao_total_final').value;
+    p.totalFinalM2 = document.getElementById('mao_total_m2_final').value;
 
     lista[maoObraIndex] = p;
     localStorage.setItem('producao', JSON.stringify(lista));
     renderProducao();
+
+    // atualiza no card resultados
+    const el = document.getElementById('resultado_por_m2_com_mao');
+    if (el) el.value = p.totalFinalM2 || '';
+
     alert('✅ Mão de obra salva!');
   }
 
@@ -1545,7 +1626,7 @@
 
   // boot
   (function init() {
-    loadUsers(); // ensures admin exists
+    loadUsers();
     const s = getSession();
     if (s) showAppUI();
     else showLoginUI();
