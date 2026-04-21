@@ -582,6 +582,8 @@
       <button class="btn btn-dark" onclick="exportarExcel('pecas')">⬇ Exportar Excel</button>
       <button class="btn btn-dark" onclick="document.getElementById('importar-pecas').click()">⬆ Importar Excel</button>
       <input id="importar-pecas" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="importarArquivo(event, 'pecas')">
+      <button class="btn btn-dark" onclick="document.getElementById('importar-ifc-pecas').click()">📐 Importar IFC</button>
+      <input id="importar-ifc-pecas" type="file" accept=".ifc" class="hidden" onchange="importarIFC(event)">
     </div>
 
     <form id="formPeca">
@@ -1990,6 +1992,286 @@
     lista.splice(index, 1);
     localStorage.setItem('producao', JSON.stringify(lista));
     renderProducao();
+  }
+
+  // ===== IFC IMPORT =====
+
+  function importarIFC(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const pecasImportadas = parseIFCText(e.target.result);
+        if (pecasImportadas.length === 0) {
+          alert('ℹ️ Nenhum elemento com quantidades (área/volume) foi encontrado no arquivo IFC.\nVerifique se o arquivo exportado contém IfcElementQuantity com IfcQuantityArea ou IfcQuantityVolume.');
+          return;
+        }
+        const existing = JSON.parse(localStorage.getItem('pecas') || '[]');
+        localStorage.setItem('pecas', JSON.stringify(existing.concat(pecasImportadas)));
+        renderPecas();
+        alert(`✅ ${pecasImportadas.length} elemento(s) importado(s) do arquivo IFC!`);
+      } catch (err) {
+        alert('❌ Erro ao processar arquivo IFC: ' + err.message);
+        console.error(err);
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function parseIFCText(text) {
+    // ---- Step 1: parse all STEP entity statements ----
+    const entities = new Map(); // id (number) -> { type, attrs }
+    const norm = text.replace(/\r\n?/g, '\n');
+    let buf = '';
+    for (const rawLine of norm.split('\n')) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('/*') || line === 'DATA;' ||
+          line === 'ENDSEC;' || line === 'END-ISO-10303-21;' ||
+          line.startsWith('ISO-10303-21') || line.startsWith('HEADER;') ||
+          line.startsWith('FILE_DESCRIPTION') || line.startsWith('FILE_NAME') ||
+          line.startsWith('FILE_SCHEMA')) {
+        // IFC header lines never span multiple data lines, so any accumulated
+        // buffer here belongs to a header statement and can be safely discarded.
+        if (buf && !buf.endsWith(';')) buf = '';
+        continue;
+      }
+      buf += (buf ? ' ' : '') + line;
+      if (buf.endsWith(';')) {
+        const stmt = buf;
+        buf = '';
+        const m = /^#(\d+)\s*=\s*([A-Z][A-Z0-9_]*)\s*\((.*)\)\s*;$/.exec(stmt);
+        if (m) {
+          entities.set(parseInt(m[1], 10), { type: m[2], attrs: m[3] });
+        }
+      }
+    }
+
+    // ---- Step 2: detect project length unit (default: metres) ----
+    let lengthFactor = 1.0;
+    entities.forEach(function(e) {
+      if (e.type === 'IFCSIUNIT') {
+        const p = splitStepAttrs(e.attrs);
+        if (p.length >= 4) {
+          const unitType = p[1].replace(/\./g, '');
+          const prefix = p[2].replace(/[.$\s]/g, '');
+          if (unitType === 'LENGTHUNIT') {
+            if (prefix === 'MILLI') lengthFactor = 0.001;
+            else if (prefix === 'CENTI') lengthFactor = 0.01;
+            else lengthFactor = 1.0;
+          }
+        }
+      }
+    });
+    const areaFactor = lengthFactor * lengthFactor;
+    const volFactor  = lengthFactor * lengthFactor * lengthFactor;
+
+    // ---- Step 3: extract quantity entities ----
+    const qttyArea   = new Map(); // id -> { name, value m² }
+    const qttyVolume = new Map(); // id -> { name, value m³ }
+    const qttyLength = new Map(); // id -> { name, value m  }
+
+    entities.forEach(function(e, id) {
+      const p = splitStepAttrs(e.attrs);
+      if (e.type === 'IFCQUANTITYAREA') {
+        const val = parseFloat(p[3]);
+        if (!isNaN(val)) qttyArea.set(id, { name: unquoteStep(p[0]), value: val * areaFactor });
+      } else if (e.type === 'IFCQUANTITYVOLUME') {
+        const val = parseFloat(p[3]);
+        if (!isNaN(val)) qttyVolume.set(id, { name: unquoteStep(p[0]), value: val * volFactor });
+      } else if (e.type === 'IFCQUANTITYLENGTH') {
+        const val = parseFloat(p[3]);
+        if (!isNaN(val)) qttyLength.set(id, { name: unquoteStep(p[0]), value: val * lengthFactor });
+      }
+    });
+
+    // ---- Step 4: IFCELEMENTQUANTITY groups ----
+    const qtySets = new Map(); // id -> [qty IDs]
+    entities.forEach(function(e, id) {
+      if (e.type === 'IFCELEMENTQUANTITY') {
+        const p = splitStepAttrs(e.attrs);
+        // attrs: GlobalId, OwnerHistory, Name, Description, MethodOfMeasurement, Quantities
+        qtySets.set(id, extractStepRefs(p[5] || ''));
+      }
+    });
+
+    // ---- Step 5: IFCRELDEFINESBYPROPERTIES links element -> quantity set ----
+    const elementQtySets = new Map(); // elementId -> Set<qtySetId>
+    entities.forEach(function(e) {
+      if (e.type === 'IFCRELDEFINESBYPROPERTIES') {
+        const p = splitStepAttrs(e.attrs);
+        // attrs: GlobalId, OwnerHistory, Name, Description, RelatedObjects, RelatingPropertyDefinition
+        const propDefId = extractStepRef(p[5] || '');
+        if (propDefId !== null && qtySets.has(propDefId)) {
+          extractStepRefs(p[4] || '').forEach(function(eid) {
+            if (!elementQtySets.has(eid)) elementQtySets.set(eid, new Set());
+            elementQtySets.get(eid).add(propDefId);
+          });
+        }
+      }
+    });
+
+    // ---- Step 6: collect building elements ----
+    const ELEMENT_TYPES = new Set([
+      'IFCWALL','IFCWALLSTANDARDCASE','IFCSLAB','IFCCOLUMN','IFCBEAM',
+      'IFCROOF','IFCSTAIR','IFCWINDOW','IFCDOOR','IFCPLATE',
+      'IFCMEMBER','IFCFOOTING','IFCPILE','IFCCURTAINWALL',
+      'IFCBUILDINGELEMENTPROXY','IFCSTAIRFLIGHT','IFCRAMPFLIGHT',
+      'IFCRAILING','IFCSPACE','IFCREINFORCINGBAR','IFCREINFORCINGELEMENT'
+    ]);
+
+    const now = new Date().toLocaleString('pt-BR');
+    const seenNames = new Map();
+    const pecas = [];
+
+    entities.forEach(function(e, id) {
+      if (!ELEMENT_TYPES.has(e.type)) return;
+
+      const qsIds = elementQtySets.get(id);
+      if (!qsIds || qsIds.size === 0) return;
+
+      const p = splitStepAttrs(e.attrs);
+      // STEP attrs: GlobalId, OwnerHistory, Name, Description, ...
+      let name = unquoteStep(p[2] || '').trim();
+      if (!name || name === '$') name = ifcFriendlyType(e.type) + '-' + id;
+
+      // Ensure unique names
+      if (seenNames.has(name)) {
+        const cnt = seenNames.get(name) + 1;
+        seenNames.set(name, cnt);
+        name = name + ' (' + cnt + ')';
+      } else {
+        seenNames.set(name, 1);
+      }
+
+      let area = 0, volume = 0;
+      let d1 = 0, d2 = 0, d3 = 0;
+
+      qsIds.forEach(function(qsId) {
+        (qtySets.get(qsId) || []).forEach(function(qId) {
+          if (qttyArea.has(qId)) {
+            // An element quantity set may contain both net and gross area values;
+            // take the largest one (typically the gross area) for cost estimation.
+            const a = qttyArea.get(qId).value;
+            if (a > area) area = a;
+          }
+          if (qttyVolume.has(qId)) {
+            // Same reasoning: prefer the gross volume quantity.
+            const v = qttyVolume.get(qId).value;
+            if (v > volume) volume = v;
+          }
+          if (qttyLength.has(qId)) {
+            const lname = qttyLength.get(qId).name.toLowerCase();
+            const lval  = qttyLength.get(qId).value;
+            if (lname.includes('length') || lname.includes('comprimento') ||
+                lname.includes('width')  || lname.includes('largura')) {
+              if (d1 === 0) d1 = lval;
+              else if (d2 === 0) d2 = lval;
+            } else if (lname.includes('height') || lname.includes('depth') ||
+                       lname.includes('thickness') || lname.includes('espessura')) {
+              if (d3 === 0) d3 = lval;
+            } else {
+              if (d1 === 0) d1 = lval;
+              else if (d2 === 0) d2 = lval;
+              else if (d3 === 0) d3 = lval;
+            }
+          }
+        });
+      });
+
+      // Estimate thickness (d3) from volume/area when not explicitly provided.
+      // Guard against near-zero area to avoid floating-point division issues.
+      if (area > 0.0001 && volume > 0 && d3 === 0) {
+        d3 = parseFloat((volume / area).toFixed(4));
+      }
+
+      const perimetro   = (d1 > 0 && d2 > 0) ? parseFloat((2 * (d1 + d2)).toFixed(3)) : 0;
+      const areaLateral = (perimetro > 0 && d3 > 0) ? parseFloat((perimetro * d3).toFixed(3)) : 0;
+
+      pecas.push({
+        data: now,
+        id_peca: name,
+        dimensao1: d1 ? parseFloat(d1.toFixed(3)) : '',
+        dimensao2: d2 ? parseFloat(d2.toFixed(3)) : '',
+        dimensao3: d3 ? parseFloat(d3.toFixed(4)) : '', // 4 decimals: thickness is often sub-millimetre
+        area:      area   ? parseFloat(area.toFixed(4))   : '',
+        volume:    volume ? parseFloat(volume.toFixed(6))  : '',
+        perimetro: perimetro   || '',
+        area_lateral: areaLateral || '',
+        arames: ''
+      });
+    });
+
+    return pecas;
+  }
+
+  // Split comma-separated STEP attribute string, respecting nested parens and quoted strings
+  function splitStepAttrs(attrs) {
+    const parts = [];
+    let cur = '';
+    let depth = 0;
+    let inStr = false;
+    for (let i = 0; i < attrs.length; i++) {
+      const c = attrs[i];
+      if (!inStr && c === "'") {
+        inStr = true;
+        cur += c;
+      } else if (inStr && c === "'") {
+        cur += c;
+        if (attrs[i + 1] === "'") { i++; cur += attrs[i]; } // escaped ''
+        else inStr = false;
+      } else if (inStr) {
+        cur += c;
+      } else if (c === '(') {
+        depth++;
+        cur += c;
+      } else if (c === ')') {
+        depth--;
+        cur += c;
+      } else if (c === ',' && depth === 0) {
+        parts.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    parts.push(cur.trim());
+    return parts;
+  }
+
+  function unquoteStep(s) {
+    if (!s) return '';
+    return s.replace(/^'|'$/g, '').replace(/''/g, "'");
+  }
+
+  function extractStepRefs(s) {
+    const ids = [];
+    const re = /#(\d+)/g;
+    let m;
+    while ((m = re.exec(s)) !== null) ids.push(parseInt(m[1], 10));
+    return ids;
+  }
+
+  function extractStepRef(s) {
+    const m = /#(\d+)/.exec(s);
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  function ifcFriendlyType(t) {
+    const map = {
+      IFCWALL: 'Parede', IFCWALLSTANDARDCASE: 'Parede',
+      IFCSLAB: 'Laje', IFCCOLUMN: 'Coluna', IFCBEAM: 'Viga',
+      IFCROOF: 'Telhado', IFCSTAIR: 'Escada', IFCWINDOW: 'Janela',
+      IFCDOOR: 'Porta', IFCPLATE: 'Placa', IFCMEMBER: 'Membro',
+      IFCFOOTING: 'Fundação', IFCPILE: 'Estaca',
+      IFCCURTAINWALL: 'Fachada', IFCBUILDINGELEMENTPROXY: 'Elemento',
+      IFCSTAIRFLIGHT: 'LanceEscada', IFCRAMPFLIGHT: 'LanceRampa',
+      IFCRAILING: 'GuardaCorpo', IFCSPACE: 'Ambiente',
+      IFCREINFORCINGBAR: 'Armação', IFCREINFORCINGELEMENT: 'Armação'
+    };
+    return map[t] || t;
   }
 
   // boot
