@@ -2033,7 +2033,9 @@
           line.startsWith('ISO-10303-21') || line.startsWith('HEADER;') ||
           line.startsWith('FILE_DESCRIPTION') || line.startsWith('FILE_NAME') ||
           line.startsWith('FILE_SCHEMA')) {
-        if (buf && !buf.endsWith(';')) buf = ''; // discard incomplete header buffers
+        // IFC header lines never span multiple data lines, so any accumulated
+        // buffer here belongs to a header statement and can be safely discarded.
+        if (buf && !buf.endsWith(';')) buf = '';
         continue;
       }
       buf += (buf ? ' ' : '') + line;
@@ -2150,10 +2152,13 @@
       qsIds.forEach(function(qsId) {
         (qtySets.get(qsId) || []).forEach(function(qId) {
           if (qttyArea.has(qId)) {
+            // An element quantity set may contain both net and gross area values;
+            // take the largest one (typically the gross area) for cost estimation.
             const a = qttyArea.get(qId).value;
             if (a > area) area = a;
           }
           if (qttyVolume.has(qId)) {
+            // Same reasoning: prefer the gross volume quantity.
             const v = qttyVolume.get(qId).value;
             if (v > volume) volume = v;
           }
@@ -2176,8 +2181,9 @@
         });
       });
 
-      // Estimate thickness from area/volume when not explicit
-      if (area > 0 && volume > 0 && d3 === 0) {
+      // Estimate thickness (d3) from volume/area when not explicitly provided.
+      // Guard against near-zero area to avoid floating-point division issues.
+      if (area > 0.0001 && volume > 0 && d3 === 0) {
         d3 = parseFloat((volume / area).toFixed(4));
       }
 
@@ -2189,7 +2195,7 @@
         id_peca: name,
         dimensao1: d1 ? parseFloat(d1.toFixed(3)) : '',
         dimensao2: d2 ? parseFloat(d2.toFixed(3)) : '',
-        dimensao3: d3 ? parseFloat(d3.toFixed(4)) : '',
+        dimensao3: d3 ? parseFloat(d3.toFixed(4)) : '', // 4 decimals: thickness is often sub-millimetre
         area:      area   ? parseFloat(area.toFixed(4))   : '',
         volume:    volume ? parseFloat(volume.toFixed(6))  : '',
         perimetro: perimetro   || '',
@@ -2214,7 +2220,7 @@
         cur += c;
       } else if (inStr && c === "'") {
         cur += c;
-        if (attrs[i + 1] === "'") { cur += attrs[++i]; } // escaped ''
+        if (attrs[i + 1] === "'") { i++; cur += attrs[i]; } // escaped ''
         else inStr = false;
       } else if (inStr) {
         cur += c;
